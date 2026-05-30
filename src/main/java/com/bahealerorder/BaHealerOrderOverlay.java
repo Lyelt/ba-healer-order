@@ -18,6 +18,7 @@ import net.runelite.api.NPC;
 import net.runelite.api.Perspective;
 import net.runelite.api.Point;
 import net.runelite.api.coords.WorldPoint;
+import net.runelite.client.game.NPCManager;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
@@ -26,22 +27,27 @@ import net.runelite.client.ui.overlay.OverlayUtil;
 public class BaHealerOrderOverlay extends Overlay
 {
 	private static final Color TEXT_SHADOW_COLOR = Color.BLACK;
+	private static final Color HP_TEXT_COLOR = Color.WHITE;
 	private static final int TEXT_Z_OFFSET = 60;
+	private static final int HP_TEXT_Z_OFFSET = -10;
+	private static final int HP_TEXT_SIZE = 13;
 	private static final float HULL_STROKE_WIDTH = 2.0f;
 	private static final float TILE_STROKE_WIDTH = 1.0f;
 	private static final int TILE_ALPHA = 50;
 
 	private final BaHealerOrderPlugin plugin;
 	private final BaHealerOrderConfig config;
+	private final NPCManager npcManager;
 
 	@Inject
-	private BaHealerOrderOverlay(BaHealerOrderPlugin plugin, BaHealerOrderConfig config)
+	private BaHealerOrderOverlay(BaHealerOrderPlugin plugin, BaHealerOrderConfig config, NPCManager npcManager)
 	{
 		this.plugin = plugin;
 		this.config = config;
+		this.npcManager = npcManager;
 
 		setPosition(OverlayPosition.DYNAMIC);
-		setLayer(OverlayLayer.ABOVE_SCENE);
+		setLayer(OverlayLayer.UNDER_WIDGETS);
 	}
 
 	@Override
@@ -73,6 +79,11 @@ public class BaHealerOrderOverlay extends Overlay
 			{
 				int foodFed = plugin.getFoodFedByHealerOrder().getOrDefault(order, 0);
 				renderFoodCount(graphics, npc, order, foodFed, xOffset);
+			}
+
+			if (config.showHealerHp())
+			{
+				renderHealerHp(graphics, npc, xOffset);
 			}
 		}
 
@@ -236,6 +247,75 @@ public class BaHealerOrderOverlay extends Overlay
 		graphics.setFont(originalFont.deriveFont(Font.BOLD, (float) config.foodCountTextSize()));
 		renderOutlinedText(graphics, offsetPoint(textLocation, xOffset), text, config.foodCountColor());
 		graphics.setFont(originalFont);
+	}
+
+	private void renderHealerHp(Graphics2D graphics, NPC npc, int xOffset)
+	{
+		String text = getHealerHpText(npc);
+
+		if (text == null)
+		{
+			return;
+		}
+
+		Point textLocation = npc.getCanvasTextLocation(
+				graphics,
+				text,
+				HP_TEXT_Z_OFFSET
+		);
+
+		if (textLocation == null)
+		{
+			return;
+		}
+
+		Font originalFont = graphics.getFont();
+
+		graphics.setFont(originalFont.deriveFont(Font.PLAIN, (float) HP_TEXT_SIZE));
+		renderOutlinedText(graphics, offsetPoint(textLocation, xOffset), text, HP_TEXT_COLOR);
+		graphics.setFont(originalFont);
+	}
+
+	private String getHealerHpText(NPC npc)
+	{
+		int healthRatio = npc.getHealthRatio();
+		int healthScale = npc.getHealthScale();
+		Integer maxHealth = npcManager.getHealth(npc.getId());
+
+		if (healthRatio < 0 || healthScale <= 0 || maxHealth == null || maxHealth <= 0)
+		{
+			return null;
+		}
+
+		return calculateCurrentHitpoints(healthRatio, healthScale, maxHealth) + "/" + maxHealth;
+	}
+
+	private int calculateCurrentHitpoints(int healthRatio, int healthScale, int maxHealth)
+	{
+		if (healthRatio <= 0)
+		{
+			return 0;
+		}
+
+		int minHealth = 1;
+		int estimatedMaxHealth;
+
+		if (healthScale > 1)
+		{
+			if (healthRatio > 1)
+			{
+				minHealth = (maxHealth * (healthRatio - 1) + healthScale - 2) / (healthScale - 1);
+			}
+
+			estimatedMaxHealth = (maxHealth * healthRatio - 1) / (healthScale - 1);
+			estimatedMaxHealth = Math.min(estimatedMaxHealth, maxHealth);
+		}
+		else
+		{
+			estimatedMaxHealth = maxHealth;
+		}
+
+		return (minHealth + estimatedMaxHealth + 1) / 2;
 	}
 
 	private String getFoodCountText(int healerOrder, int foodFed)

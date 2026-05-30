@@ -221,6 +221,18 @@ public interface BaHealerOrderConfig extends Config
     }
 
     @ConfigItem(
+            keyName = "showHealerHp",
+            name = "Show Healer HP",
+            description = "Displays each tracked Penance Healer's current hitpoints on its health bar when available",
+            section = healerHighlightSection,
+            position = 8
+    )
+    default boolean showHealerHp()
+    {
+        return false;
+    }
+
+    @ConfigItem(
             keyName = "showFoodPanel",
             name = "Show Food Panel",
             description = "Shows a panel tracking how much good food has been fed to each Penance Healer",
